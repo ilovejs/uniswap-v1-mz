@@ -1,4 +1,5 @@
 interface Exchange:
+    # return nothing
     def setup(token_addr: address): nonpayable
 
 event NewExchange:
