@@ -21,8 +21,22 @@ Because:
 
     I can practice rewriting ERC20, Uniswap a bit like I did here !
 
+## Why v1 is bad
 
-[reading](https://consensys.net/blog/developers/solidity-best-practices-for-smart-contract-security/)
+In whitepaper,
+
+"Uniswap can be frontrun to some extent. This is bounded by user set minimum/maximum values and transaction deadlines"
+
+
+## Future
+
+[VB original idea](./amm.md) with my comments.
+
+[whitepaper](https://hackmd.io/C-DvwDSfSxuh-Gd4WKE_ig) has more examples
+
+[reading](https://consensys.net/blog/developers/solidity-best-practices-for-smart-contract-security/) best sol practice
+
+[formal-verification](https://github.com/runtimeverification/verified-smart-contracts/blob/uniswap/uniswap/x-y-k.pdf) proof, math
 
 ----
 
