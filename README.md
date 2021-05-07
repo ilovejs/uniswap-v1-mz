@@ -2,12 +2,21 @@
 
 https://consensys.net/blog/developers/solidity-best-practices-for-smart-contract-security/
 
-branch mathc-v1 utilize vyper 0.2.0
+branch `mathc-v1` utilize `vyper 0.2.0`
 
 Env:
+
     mac
     python3.6
 
+## I'm in 2021, Why I upgrade uniswap that was written in 2019 ?
+
+Because:
+
+    Old toolchain not compile it.
+    My mac won't install old version 0.1.x vyper...
+    There is not easy sandbox to test contract in python DSL (vyper...)
+    I can practice a bit..
 
 * Website: [uniswap.io/](https://uniswap.io/)
 * Docs: [docs.uniswap.io/](https://docs.uniswap.io/)
