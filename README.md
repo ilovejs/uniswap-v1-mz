@@ -1,7 +1,5 @@
 ## Warnings [how to run]
 
-https://consensys.net/blog/developers/solidity-best-practices-for-smart-contract-security/
-
 branch `mathc-v1` utilize `vyper 0.2.12`
 
 If pip can't find 0.2.12, just git clone then `python setup.py install` locally.
@@ -15,11 +13,16 @@ Env:
 
 Because:
 
-    Old toolchain not compile it.
-    My mac won't install old version 0.1.x vyper...
-    There is not easy sandbox to test contract in python DSL (vyper...)
-    I can practice a bit..
+    Old toolchain not compile, 1.x vyper has lots of bugs, missing types when run..
 
+    My mac won't install old version 0.1.x vyper...
+
+    There is not easy sandbox to test contract in python DSL (vyper...)
+
+    I can practice rewriting ERC20, Uniswap a bit like I did here !
+
+
+[reading](https://consensys.net/blog/developers/solidity-best-practices-for-smart-contract-security/)
 
 ----
 
