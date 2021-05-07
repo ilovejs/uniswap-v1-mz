@@ -2,6 +2,12 @@
 
 https://consensys.net/blog/developers/solidity-best-practices-for-smart-contract-security/
 
+branch mathc-v1 utilize vyper 0.2.0
+
+Env:
+    mac
+    python3.6
+
 
 * Website: [uniswap.io/](https://uniswap.io/)
 * Docs: [docs.uniswap.io/](https://docs.uniswap.io/)
