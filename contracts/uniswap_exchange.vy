@@ -10,7 +10,7 @@ interface Exchange:
     def ethToTokenTransferInput(min_tokens: uint256, deadline: timestamp, recipient: address) -> uint256: payable
 
     # wei
-    def ethToTokenTransferOutput(tokens_bought: uint256, deadline: timestamp, recipient: address) -> uint256: view
+    def ethToTokenTransferOutput(tokens_bought: uint256, deadline: timestamp, recipient: address) -> uint256: payable
 
 event TokenPurchase:
     buyer: indexed(address)
@@ -46,14 +46,19 @@ name: public(bytes32)                             # Uniswap V1
 symbol: public(bytes32)                           # UNI-V1
 decimals: public(uint256)                         # 18
 totalSupply: public(uint256)                      # total number of UNI in existence
-balances: uint256[address]                        # UNI balance of an address
+# balances: uint256[address]                        # UNI balance of an address
+
+balance: HashMap[address, uint256]
+
 allowances: (uint256[address])[address]           # UNI allowance of one address on another
+
 token: address(ERC20)                             # address of the ERC20 token traded on this contract
+
 factory: Factory                                  # interface for the factory that created this contract
 
 # @dev This function acts as a contract constructor which is not currently supported in contracts deployed
 #      using create_with_code_of(). It is called once by the factory during contract creation.
-@public
+@external
 def setup(token_addr: address):
     assert (self.factory == ZERO_ADDRESS and self.token == ZERO_ADDRESS) and token_addr != ZERO_ADDRESS
     self.factory = msg.sender
@@ -68,7 +73,7 @@ def setup(token_addr: address):
 # @param max_tokens Maximum number of tokens deposited. Deposits max amount if total UNI supply is 0.
 # @param deadline Time after which this transaction can no longer be executed.
 # @return The amount of UNI minted.
-@public
+@external
 @payable
 def addLiquidity(min_liquidity: uint256, max_tokens: uint256, deadline: timestamp) -> uint256:
     assert deadline > block.timestamp and (max_tokens > 0 and msg.value > 0)
@@ -107,7 +112,7 @@ def addLiquidity(min_liquidity: uint256, max_tokens: uint256, deadline: timestam
 # @param min_tokens Minimum Tokens withdrawn.
 # @param deadline Time after which this transaction can no longer be executed.
 # @return The amount of ETH and Tokens withdrawn.
-@public
+@external
 def removeLiquidity(amount: uint256, min_eth: uint256, min_tokens: uint256, deadline: timestamp) -> (uint256, uint256):
     assert (amount > 0 and deadline > block.timestamp) and (min_eth > 0 and min_tokens > 0)
     total_liquidity: uint256 = self.totalSupply
@@ -132,8 +137,8 @@ def removeLiquidity(amount: uint256, min_eth: uint256, min_tokens: uint256, dead
 # @param input_reserve Amount of ETH or Tokens (input type) in exchange reserves.
 # @param output_reserve Amount of ETH or Tokens (output type) in exchange reserves.
 # @return Amount of ETH or Tokens bought.
-@private
-@constant
+@internal
+@view
 def getInputPrice(input_amount: uint256, input_reserve: uint256, output_reserve: uint256) -> uint256:
     assert input_reserve > 0 and output_reserve > 0
     input_amount_with_fee: uint256 = input_amount * 997
@@ -146,8 +151,8 @@ def getInputPrice(input_amount: uint256, input_reserve: uint256, output_reserve:
 # @param input_reserve Amount of ETH or Tokens (input type) in exchange reserves.
 # @param output_reserve Amount of ETH or Tokens (output type) in exchange reserves.
 # @return Amount of ETH or Tokens sold.
-@private
-@constant
+@internal
+@pure
 def getOutputPrice(output_amount: uint256, input_reserve: uint256, output_reserve: uint256) -> uint256:
     assert input_reserve > 0 and output_reserve > 0
     numerator: uint256 = input_reserve * output_amount * 1000
@@ -155,20 +160,21 @@ def getOutputPrice(output_amount: uint256, input_reserve: uint256, output_reserv
     return numerator / denominator + 1
 
 # eth_sold -> wei
-@private
+@internal
 def ethToTokenInput(eth_sold: uint256, min_tokens: uint256, deadline: timestamp, buyer: address, recipient: address) -> uint256:
     assert deadline >= block.timestamp and (eth_sold > 0 and min_tokens > 0)
     token_reserve: uint256 = self.token.balanceOf(self)
     tokens_bought: uint256 = self.getInputPrice(as_unitless_number(eth_sold), as_unitless_number(self.balance - eth_sold), token_reserve)
     assert tokens_bought >= min_tokens
     assert self.token.transfer(recipient, tokens_bought)
+
     log TokenPurchase(buyer, eth_sold, tokens_bought)
     return tokens_bought
 
 # @notice Convert ETH to Tokens.
 # @dev User specifies exact input (msg.value).
 # @dev User cannot specify minimum output or deadline.
-@public
+@external
 @payable
 def __default__():
     self.ethToTokenInput(msg.value, 1, block.timestamp, msg.sender, msg.sender)
@@ -178,7 +184,7 @@ def __default__():
 # @param min_tokens Minimum Tokens bought.
 # @param deadline Time after which this transaction can no longer be executed.
 # @return Amount of Tokens bought.
-@public
+@external
 @payable
 def ethToTokenSwapInput(min_tokens: uint256, deadline: timestamp) -> uint256:
     return self.ethToTokenInput(msg.value, min_tokens, deadline, msg.sender, msg.sender)
@@ -189,14 +195,14 @@ def ethToTokenSwapInput(min_tokens: uint256, deadline: timestamp) -> uint256:
 # @param deadline Time after which this transaction can no longer be executed.
 # @param recipient The address that receives output Tokens.
 # @return Amount of Tokens bought.
-@public
+@external
 @payable
 def ethToTokenTransferInput(min_tokens: uint256, deadline: timestamp, recipient: address) -> uint256
     assert recipient != self and recipient != ZERO_ADDRESS
     return self.ethToTokenInput(msg.value, min_tokens, deadline, msg.sender, recipient)
 
 # max_eth, eth_refund -> wei
-@private
+@internal
 def ethToTokenOutput(tokens_bought: uint256, max_eth: uint256, deadline: timestamp, buyer: address, recipient: address) -> uint256:
     assert deadline >= block.timestamp and (tokens_bought > 0 and max_eth > 0)
     token_reserve: uint256 = self.token.balanceOf(self)
@@ -218,7 +224,7 @@ def ethToTokenOutput(tokens_bought: uint256, max_eth: uint256, deadline: timesta
 # @param tokens_bought Amount of tokens bought.
 # @param deadline Time after which this transaction can no longer be executed.
 # @return Amount of ETH sold.
-@public
+@external
 @payable
 def ethToTokenSwapOutput(tokens_bought: uint256, deadline: timestamp) -> uint256:
     return as_wei_value(self.ethToTokenOutput(tokens_bought, msg.value, deadline, msg.sender, msg.sender), "wei")
@@ -229,14 +235,14 @@ def ethToTokenSwapOutput(tokens_bought: uint256, deadline: timestamp) -> uint256
 # @param deadline Time after which this transaction can no longer be executed.
 # @param recipient The address that receives output Tokens.
 # @return Amount of ETH sold.
-@public
+@external
 @payable
 def ethToTokenTransferOutput(tokens_bought: uint256, deadline: timestamp, recipient: address) -> uint256:
     assert recipient != self and recipient != ZERO_ADDRESS
     return as_wei_value(self.ethToTokenOutput(tokens_bought, msg.value, deadline, msg.sender, recipient), "wei")
 
 # TODO arg min_eth in wei
-@private
+@internal
 def tokenToEthInput(tokens_sold: uint256, min_eth: uint256, deadline: timestamp, buyer: address, recipient: address) -> uint256:
 
     assert deadline >= block.timestamp and (tokens_sold > 0 and min_eth > 0)
@@ -260,7 +266,7 @@ def tokenToEthInput(tokens_sold: uint256, min_eth: uint256, deadline: timestamp,
 # @param min_eth Minimum ETH purchased.
 # @param deadline Time after which this transaction can no longer be executed.
 # @return Amount of ETH bought.
-@public
+@external
 def tokenToEthSwapInput(tokens_sold: uint256, min_eth: uint256, deadline: timestamp) -> uint256:
     return as_wei_value(self.tokenToEthInput(tokens_sold, min_eth, deadline, msg.sender, msg.sender), "wei")
 
@@ -271,13 +277,13 @@ def tokenToEthSwapInput(tokens_sold: uint256, min_eth: uint256, deadline: timest
 # @param deadline Time after which this transaction can no longer be executed.
 # @param recipient The address that receives output ETH.
 # @return Amount of ETH bought.
-@public
+@external
 def tokenToEthTransferInput(tokens_sold: uint256, min_eth: uint256, deadline: timestamp, recipient: address) -> uint256:
     assert recipient != self and recipient != ZERO_ADDRESS
     return as_wei_value(self.tokenToEthInput(tokens_sold, min_eth, deadline, msg.sender, recipient), "wei")
 
 # TODO: eth_bought in wei
-@private
+@internal
 def tokenToEthOutput(eth_bought: uint256, max_tokens: uint256, deadline: timestamp, buyer: address, recipient: address) -> uint256:
 
     assert deadline >= block.timestamp and eth_bought > 0
@@ -300,7 +306,7 @@ def tokenToEthOutput(eth_bought: uint256, max_tokens: uint256, deadline: timesta
 # @param max_tokens Maximum Tokens sold.
 # @param deadline Time after which this transaction can no longer be executed.
 # @return Amount of Tokens sold.
-@public
+@external
 def tokenToEthSwapOutput(eth_bought: uint256, max_tokens: uint256, deadline: timestamp) -> uint256:
     return self.tokenToEthOutput(eth_bought, max_tokens, deadline, msg.sender, msg.sender)
 
@@ -312,13 +318,13 @@ def tokenToEthSwapOutput(eth_bought: uint256, max_tokens: uint256, deadline: tim
 # @param deadline Time after which this transaction can no longer be executed.
 # @param recipient The address that receives output ETH.
 # @return Amount of Tokens sold.
-@public
+@external
 def tokenToEthTransferOutput(eth_bought: uint256, max_tokens: uint256, deadline: timestamp, recipient: address) -> uint256:
     assert recipient != self and recipient != ZERO_ADDRESS
     return self.tokenToEthOutput(eth_bought, max_tokens, deadline, msg.sender, recipient)
 
 # TODO: min_eth_bought in wei
-@private
+@internal
 def tokenToTokenInput(tokens_sold: uint256, min_tokens_bought: uint256, min_eth_bought: uint256, deadline: timestamp, buyer: address, recipient: address, exchange_addr: address) -> uint256:
     assert (deadline >= block.timestamp and tokens_sold > 0) and (min_tokens_bought > 0 and min_eth_bought > 0)
     assert exchange_addr != self and exchange_addr != ZERO_ADDRESS
@@ -343,7 +349,7 @@ def tokenToTokenInput(tokens_sold: uint256, min_tokens_bought: uint256, min_eth_
 # @param deadline Time after which this transaction can no longer be executed.
 # @param token_addr The address of the token being purchased.
 # @return Amount of Tokens (token_addr) bought.
-@public
+@external
 def tokenToTokenSwapInput(tokens_sold: uint256, min_tokens_bought: uint256, min_eth_bought: uint256, deadline: timestamp, token_addr: address) -> uint256:
     exchange_addr: address = self.factory.getExchange(token_addr)
     return self.tokenToTokenInput(tokens_sold, min_tokens_bought, min_eth_bought, deadline, msg.sender, msg.sender, exchange_addr)
@@ -359,12 +365,12 @@ def tokenToTokenSwapInput(tokens_sold: uint256, min_tokens_bought: uint256, min_
 # @param recipient The address that receives output ETH.
 # @param token_addr The address of the token being purchased.
 # @return Amount of Tokens (token_addr) bought.
-@public
+@external
 def tokenToTokenTransferInput(tokens_sold: uint256, min_tokens_bought: uint256, min_eth_bought: uint256, deadline: timestamp, recipient: address, token_addr: address) -> uint256:
     exchange_addr: address = self.factory.getExchange(token_addr)
     return self.tokenToTokenInput(tokens_sold, min_tokens_bought, min_eth_bought, deadline, msg.sender, recipient, exchange_addr)
 
-@private
+@internal
 def tokenToTokenOutput(tokens_bought: uint256, max_tokens_sold: uint256, max_eth_sold: uint256, deadline: timestamp, buyer: address, recipient: address, exchange_addr: address) -> uint256:
     assert deadline >= block.timestamp and (tokens_bought > 0 and max_eth_sold > 0)
     assert exchange_addr != self and exchange_addr != ZERO_ADDRESS
@@ -389,7 +395,7 @@ def tokenToTokenOutput(tokens_bought: uint256, max_tokens_sold: uint256, max_eth
 # @param deadline Time after which this transaction can no longer be executed.
 # @param token_addr The address of the token being purchased.
 # @return Amount of Tokens (self.token) sold.
-@public
+@external
 def tokenToTokenSwapOutput(tokens_bought: uint256, max_tokens_sold: uint256, max_eth_sold: uint256, deadline: timestamp, token_addr: address) -> uint256:
     exchange_addr: address = self.factory.getExchange(token_addr)
     return self.tokenToTokenOutput(tokens_bought, max_tokens_sold, max_eth_sold, deadline, msg.sender, msg.sender, exchange_addr)
@@ -405,7 +411,7 @@ def tokenToTokenSwapOutput(tokens_bought: uint256, max_tokens_sold: uint256, max
 # @param recipient The address that receives output ETH.
 # @param token_addr The address of the token being purchased.
 # @return Amount of Tokens (self.token) sold.
-@public
+@external
 def tokenToTokenTransferOutput(tokens_bought: uint256, max_tokens_sold: uint256, max_eth_sold: uint256, deadline: timestamp, recipient: address, token_addr: address) -> uint256:
     exchange_addr: address = self.factory.getExchange(token_addr)
     return self.tokenToTokenOutput(tokens_bought, max_tokens_sold, max_eth_sold, deadline, msg.sender, recipient, exchange_addr)
@@ -420,7 +426,7 @@ def tokenToTokenTransferOutput(tokens_bought: uint256, max_tokens_sold: uint256,
 # @param deadline Time after which this transaction can no longer be executed.
 # @param exchange_addr The address of the exchange for the token being purchased.
 # @return Amount of Tokens (exchange_addr.token) bought.
-@public
+@external
 def tokenToExchangeSwapInput(tokens_sold: uint256, min_tokens_bought: uint256, min_eth_bought: uint256, deadline: timestamp, exchange_addr: address) -> uint256:
     return self.tokenToTokenInput(tokens_sold, min_tokens_bought, min_eth_bought, deadline, msg.sender, msg.sender, exchange_addr)
 
@@ -436,7 +442,7 @@ def tokenToExchangeSwapInput(tokens_sold: uint256, min_tokens_bought: uint256, m
 # @param recipient The address that receives output ETH.
 # @param exchange_addr The address of the exchange for the token being purchased.
 # @return Amount of Tokens (exchange_addr.token) bought.
-@public
+@external
 def tokenToExchangeTransferInput(tokens_sold: uint256, min_tokens_bought: uint256, min_eth_bought: uint256, deadline: timestamp, recipient: address, exchange_addr: address) -> uint256:
     assert recipient != self
     return self.tokenToTokenInput(tokens_sold, min_tokens_bought, min_eth_bought, deadline, msg.sender, recipient, exchange_addr)
@@ -451,7 +457,7 @@ def tokenToExchangeTransferInput(tokens_sold: uint256, min_tokens_bought: uint25
 # @param deadline Time after which this transaction can no longer be executed.
 # @param exchange_addr The address of the exchange for the token being purchased.
 # @return Amount of Tokens (self.token) sold.
-@public
+@external
 def tokenToExchangeSwapOutput(tokens_bought: uint256, max_tokens_sold: uint256, max_eth_sold: uint256, deadline: timestamp, exchange_addr: address) -> uint256:
     return self.tokenToTokenOutput(tokens_bought, max_tokens_sold, max_eth_sold, deadline, msg.sender, msg.sender, exchange_addr)
 
@@ -467,7 +473,7 @@ def tokenToExchangeSwapOutput(tokens_bought: uint256, max_tokens_sold: uint256, 
 # @param recipient The address that receives output ETH.
 # @param token_addr The address of the token being purchased.
 # @return Amount of Tokens (self.token) sold.
-@public
+@external
 def tokenToExchangeTransferOutput(tokens_bought: uint256, max_tokens_sold: uint256, max_eth_sold: uint256, deadline: timestamp, recipient: address, exchange_addr: address) -> uint256:
     assert recipient != self
     return self.tokenToTokenOutput(tokens_bought, max_tokens_sold, max_eth_sold, deadline, msg.sender, recipient, exchange_addr)
@@ -476,8 +482,8 @@ def tokenToExchangeTransferOutput(tokens_bought: uint256, max_tokens_sold: uint2
 # @notice Public price function for ETH to Token trades with an exact input.
 # @param eth_sold Amount of ETH sold.
 # @return Amount of Tokens that can be bought with input ETH.
-@public
-@constant
+@external
+@view
 def getEthToTokenInputPrice(eth_sold: uint256) -> uint256:
     assert eth_sold > 0
     token_reserve: uint256 = self.token.balanceOf(self)
@@ -486,8 +492,8 @@ def getEthToTokenInputPrice(eth_sold: uint256) -> uint256:
 # @notice Public price function for ETH to Token trades with an exact output.
 # @param tokens_bought Amount of Tokens bought.
 # @return Amount of ETH needed to buy output Tokens.
-@public
-@constant
+@external
+@view
 def getEthToTokenOutputPrice(tokens_bought: uint256) -> uint256:
     assert tokens_bought > 0
     token_reserve: uint256 = self.token.balanceOf(self)
@@ -497,8 +503,8 @@ def getEthToTokenOutputPrice(tokens_bought: uint256) -> uint256:
 # @notice Public price function for Token to ETH trades with an exact input.
 # @param tokens_sold Amount of Tokens sold.
 # @return Amount of ETH that can be bought with input Tokens.
-@public
-@constant
+@external
+@view
 def getTokenToEthInputPrice(tokens_sold: uint256) -> uint256:
     assert tokens_sold > 0
     token_reserve: uint256 = self.token.balanceOf(self)
@@ -509,40 +515,40 @@ def getTokenToEthInputPrice(tokens_sold: uint256) -> uint256:
 # @notice Public price function for Token to ETH trades with an exact output.
 # @param eth_bought Amount of output ETH.
 # @return Amount of Tokens needed to buy output ETH.
-@public
-@constant
+@external
+@view
 def getTokenToEthOutputPrice(eth_bought: uint256) -> uint256:
     assert eth_bought > 0
     token_reserve: uint256 = self.token.balanceOf(self)
     return self.getOutputPrice(as_unitless_number(eth_bought), token_reserve, as_unitless_number(self.balance))
 
 # @return Address of Token that is sold on this exchange.
-@public
-@constant
+@external
+@view
 def tokenAddress() -> address:
     return self.token
 
 # @return Address of factory that created this exchange.
-@public
-@constant
+@external
+@view
 def factoryAddress() -> address(Factory):
     return self.factory
 
 # ERC20 compatibility for exchange liquidity modified from
 # https://github.com/ethereum/vyper/blob/master/examples/tokens/ERC20.vy
-@public
-@constant
+@external
+@view
 def balanceOf(_owner : address) -> uint256:
     return self.balances[_owner]
 
-@public
+@external
 def transfer(_to : address, _value : uint256) -> bool:
     self.balances[msg.sender] -= _value
     self.balances[_to] += _value
     log Transfer(msg.sender, _to, _value)
     return True
 
-@public
+@external
 def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     self.balances[_from] -= _value
     self.balances[_to] += _value
@@ -550,13 +556,13 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
     log Transfer(_from, _to, _value)
     return True
 
-@public
+@external
 def approve(_spender : address, _value : uint256) -> bool:
     self.allowances[msg.sender][_spender] = _value
     log Approval(msg.sender, _spender, _value)
     return True
 
-@public
-@constant
+@external
+@view
 def allowance(_owner : address, _spender : address) -> uint256:
     return self.allowances[_owner][_spender]
