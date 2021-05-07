@@ -1,3 +1,8 @@
+## notes
+
+https://consensys.net/blog/developers/solidity-best-practices-for-smart-contract-security/
+
+
 * Website: [uniswap.io/](https://uniswap.io/)
 * Docs: [docs.uniswap.io/](https://docs.uniswap.io/)
 * Twitter: [@UniswapExchange](https://twitter.com/UniswapExchange)
@@ -28,7 +33,7 @@ $ source env/bin/activate
 pip install -r requirements.txt
 ```
 
-4) (Optional) Switch Vyper compiler to version used in Uniswap [verification](https://github.com/runtimeverification/verified-smart-contracts/tree/uniswap/uniswap)  
+4) (Optional) Switch Vyper compiler to version used in Uniswap [verification](https://github.com/runtimeverification/verified-smart-contracts/tree/uniswap/uniswap)
 ```
 cd vyper
 git reset --hard 35038d20bd9946a35261c4c4fbcb27fe61e65f78
