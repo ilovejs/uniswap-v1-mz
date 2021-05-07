@@ -30,6 +30,8 @@ In whitepaper,
 
 ## Future
 
+read pdf in root dir
+
 [VB original idea](./amm.md) with my comments.
 
 [whitepaper](https://hackmd.io/C-DvwDSfSxuh-Gd4WKE_ig) has more examples
