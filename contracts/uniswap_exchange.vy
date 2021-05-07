@@ -6,6 +6,7 @@ interface Exchange:
     # wei
     def getEthToTokenOutputPrice(tokens_bought: uint256) -> uint256: view
 
+    # payable
     def ethToTokenTransferInput(min_tokens: uint256, deadline: timestamp, recipient: address) -> uint256: payable
 
     # wei
@@ -13,22 +14,22 @@ interface Exchange:
 
 event TokenPurchase:
     buyer: indexed(address)
-    eth_sold: indexed(uint256(wei))
+    eth_sold: indexed(uint256) # wei
     tokens_bought: indexed(uint256)
 
 event EthPurchase:
     buyer: indexed(address)
     tokens_sold: indexed(uint256)
-    eth_bought: indexed(uint256(wei))
+    eth_bought: indexed(uint256) # wei
 
 event AddLiquidity:
     provider: indexed(address)
-    eth_amount: indexed(uint256(wei))
+    eth_amount: indexed(uint256)# wei
     token_amount: indexed(uint256)
 
 event RemoveLiquidity:
     provider: indexed(address)
-    eth_amount: indexed(uint256(wei))
+    eth_amount: indexed(uint256)# wei
     token_amount: indexed(uint256)
 
 event Transfer:
@@ -74,7 +75,9 @@ def addLiquidity(min_liquidity: uint256, max_tokens: uint256, deadline: timestam
     total_liquidity: uint256 = self.totalSupply
     if total_liquidity > 0:
         assert min_liquidity > 0
-        eth_reserve: uint256(wei) = self.balance - msg.value
+
+        # eth_reserve in wei
+        eth_reserve: uint256 = self.balance - msg.value
         token_reserve: uint256 = self.token.balanceOf(self)
         token_amount: uint256 = msg.value * token_reserve / eth_reserve + 1
         liquidity_minted: uint256 = msg.value * total_liquidity / eth_reserve
@@ -97,6 +100,7 @@ def addLiquidity(min_liquidity: uint256, max_tokens: uint256, deadline: timestam
         log Transfer(ZERO_ADDRESS, msg.sender, initial_liquidity)
         return initial_liquidity
 
+# min_eth in wei
 # @dev Burn UNI tokens to withdraw ETH and Tokens at current ratio.
 # @param amount Amount of UNI burned.
 # @param min_eth Minimum ETH withdrawn.
@@ -104,13 +108,15 @@ def addLiquidity(min_liquidity: uint256, max_tokens: uint256, deadline: timestam
 # @param deadline Time after which this transaction can no longer be executed.
 # @return The amount of ETH and Tokens withdrawn.
 @public
-def removeLiquidity(amount: uint256, min_eth: uint256(wei), min_tokens: uint256, deadline: timestamp) -> (uint256(wei), uint256):
+def removeLiquidity(amount: uint256, min_eth: uint256, min_tokens: uint256, deadline: timestamp) -> (uint256, uint256):
     assert (amount > 0 and deadline > block.timestamp) and (min_eth > 0 and min_tokens > 0)
     total_liquidity: uint256 = self.totalSupply
     assert total_liquidity > 0
     token_reserve: uint256 = self.token.balanceOf(self)
-    eth_amount: uint256(wei) = amount * self.balance / total_liquidity
+
+    eth_amount: uint256 = amount * self.balance / total_liquidity
     token_amount: uint256 = amount * token_reserve / total_liquidity
+
     assert eth_amount >= min_eth and token_amount >= min_tokens
     self.balances[msg.sender] -= amount
     self.totalSupply = total_liquidity - amount
@@ -118,7 +124,8 @@ def removeLiquidity(amount: uint256, min_eth: uint256(wei), min_tokens: uint256,
     assert self.token.transfer(msg.sender, token_amount)
     log RemoveLiquidity(msg.sender, eth_amount, token_amount)
     log Transfer(msg.sender, ZERO_ADDRESS, amount)
-    return eth_amount, token_amount
+
+    return eth_amount, token_amount # TODO: eth_amount in wei
 
 # @dev Pricing function for converting between ETH and Tokens.
 # @param input_amount Amount of ETH or Tokens being sold.
@@ -147,8 +154,9 @@ def getOutputPrice(output_amount: uint256, input_reserve: uint256, output_reserv
     denominator: uint256 = (output_reserve - output_amount) * 997
     return numerator / denominator + 1
 
+# eth_sold -> wei
 @private
-def ethToTokenInput(eth_sold: uint256(wei), min_tokens: uint256, deadline: timestamp, buyer: address, recipient: address) -> uint256:
+def ethToTokenInput(eth_sold: uint256, min_tokens: uint256, deadline: timestamp, buyer: address, recipient: address) -> uint256:
     assert deadline >= block.timestamp and (eth_sold > 0 and min_tokens > 0)
     token_reserve: uint256 = self.token.balanceOf(self)
     tokens_bought: uint256 = self.getInputPrice(as_unitless_number(eth_sold), as_unitless_number(self.balance - eth_sold), token_reserve)
@@ -183,21 +191,26 @@ def ethToTokenSwapInput(min_tokens: uint256, deadline: timestamp) -> uint256:
 # @return Amount of Tokens bought.
 @public
 @payable
-def ethToTokenTransferInput(min_tokens: uint256, deadline: timestamp, recipient: address) -> uint256:
+def ethToTokenTransferInput(min_tokens: uint256, deadline: timestamp, recipient: address) -> uint256
     assert recipient != self and recipient != ZERO_ADDRESS
     return self.ethToTokenInput(msg.value, min_tokens, deadline, msg.sender, recipient)
 
+# max_eth, eth_refund -> wei
 @private
-def ethToTokenOutput(tokens_bought: uint256, max_eth: uint256(wei), deadline: timestamp, buyer: address, recipient: address) -> uint256(wei):
+def ethToTokenOutput(tokens_bought: uint256, max_eth: uint256, deadline: timestamp, buyer: address, recipient: address) -> uint256:
     assert deadline >= block.timestamp and (tokens_bought > 0 and max_eth > 0)
     token_reserve: uint256 = self.token.balanceOf(self)
     eth_sold: uint256 = self.getOutputPrice(tokens_bought, as_unitless_number(self.balance - max_eth), token_reserve)
     # Throws if eth_sold > max_eth
-    eth_refund: uint256(wei) = max_eth - as_wei_value(eth_sold, 'wei')
+
+    eth_refund: uint256 = max_eth - as_wei_value(eth_sold, 'wei')
+
     if eth_refund > 0:
         send(buyer, eth_refund)
+
     assert self.token.transfer(recipient, tokens_bought)
     log TokenPurchase(buyer, as_wei_value(eth_sold, 'wei'), tokens_bought)
+
     return as_wei_value(eth_sold, 'wei')
 
 # @notice Convert ETH to Tokens.
@@ -347,7 +360,7 @@ def tokenToTokenSwapInput(tokens_sold: uint256, min_tokens_bought: uint256, min_
 # @param token_addr The address of the token being purchased.
 # @return Amount of Tokens (token_addr) bought.
 @public
-def tokenToTokenTransferInput(tokens_sold: uint256, min_tokens_bought: uint256, min_eth_bought: uint256(wei), deadline: timestamp, recipient: address, token_addr: address) -> uint256:
+def tokenToTokenTransferInput(tokens_sold: uint256, min_tokens_bought: uint256, min_eth_bought: uint256, deadline: timestamp, recipient: address, token_addr: address) -> uint256:
     exchange_addr: address = self.factory.getExchange(token_addr)
     return self.tokenToTokenInput(tokens_sold, min_tokens_bought, min_eth_bought, deadline, msg.sender, recipient, exchange_addr)
 
