@@ -1,8 +1,10 @@
-## notes
+## Warnings [how to run]
 
 https://consensys.net/blog/developers/solidity-best-practices-for-smart-contract-security/
 
-branch `mathc-v1` utilize `vyper 0.2.0`
+branch `mathc-v1` utilize `vyper 0.2.12`
+
+If pip can't find 0.2.12, just git clone then `python setup.py install` locally.
 
 Env:
 
@@ -17,6 +19,9 @@ Because:
     My mac won't install old version 0.1.x vyper...
     There is not easy sandbox to test contract in python DSL (vyper...)
     I can practice a bit..
+
+
+----
 
 * Website: [uniswap.io/](https://uniswap.io/)
 * Docs: [docs.uniswap.io/](https://docs.uniswap.io/)
