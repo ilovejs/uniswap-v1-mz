@@ -1,13 +1,17 @@
 import os
 import pytest
 from pytest import raises
+import vyper
 
 from web3 import Web3
 from web3.contract import ConciseContract
 import eth_tester
 from eth_tester import EthereumTester, PyEVMBackend
 from eth_tester.exceptions import TransactionFailed
-from vyper import compiler
+
+# from vyper import compiler
+from vyper.compiler import compile_code, compile_codes
+from vyper.signatures import sig_utils
 
 from tests.constants import (
     ETH_RESERVE,
@@ -47,8 +51,18 @@ def create_contract(w3, path):
     wd = os.path.dirname(os.path.realpath(__file__))
     with open(os.path.join(wd, os.pardir, path)) as f:
         source = f.read()
-    bytecode = '0x' + compiler.compile(source).hex()
-    abi = compiler.mk_full_signature(source)
+
+    # TODO: compiler.compile
+    bytecode = compile_code(source)
+
+    cs = compile_code(source, ['abi'])
+    print(cs)
+    # os.exit(1)
+
+    # TODO: compiler.compile
+    # don't try: sig_utils.mk_full_signature(cs['abi'])
+    abi = cs['abi']
+
     return w3.eth.contract(abi=abi, bytecode=bytecode)
 
 @pytest.fixture
@@ -97,7 +111,7 @@ def factory(w3, exchange_template):
 def exchange_abi():
     wd = os.path.dirname(os.path.realpath(__file__))
     code = open(os.path.join(wd, os.pardir, 'contracts/uniswap_exchange.vy')).read()
-    return compiler.mk_full_signature(code)
+    return sig_utils.mk_full_signature(code)
 
 @pytest.fixture
 def HAY_exchange(w3, exchange_abi, factory, HAY_token):
