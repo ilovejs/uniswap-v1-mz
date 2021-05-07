@@ -1,3 +1,4 @@
+from vyper.interfaces import ERC20
 
 interface Factory:
     def getExchange(token_addr: address) -> address: view
@@ -7,10 +8,10 @@ interface Exchange:
     def getEthToTokenOutputPrice(tokens_bought: uint256) -> uint256: view
 
     # payable
-    def ethToTokenTransferInput(min_tokens: uint256, deadline: timestamp, recipient: address) -> uint256: payable
+    def ethToTokenTransferInput(min_tokens: uint256, deadline: timestamp, recipient: address) -> uint256
 
-    # wei
-    def ethToTokenTransferOutput(tokens_bought: uint256, deadline: timestamp, recipient: address) -> uint256: payable
+    # wei, payable
+    def ethToTokenTransferOutput(tokens_bought: uint256, deadline: timestamp, recipient: address) -> uint256
 
 event TokenPurchase:
     buyer: indexed(address)
@@ -46,19 +47,23 @@ name: public(bytes32)                             # Uniswap V1
 symbol: public(bytes32)                           # UNI-V1
 decimals: public(uint256)                         # 18
 totalSupply: public(uint256)                      # total number of UNI in existence
+
 # balances: uint256[address]                        # UNI balance of an address
+balance: public(HashMap[address, uint256])
 
-balance: HashMap[address, uint256]
+# allowances: (uint256[address])[address]           # UNI allowance of one address on another
+allowance: public(HashMap[address, HashMap[address, uint256]])
 
-allowances: (uint256[address])[address]           # UNI allowance of one address on another
+# address of the ERC20 token traded on this contract
+token: address(ERC20)
 
-token: address(ERC20)                             # address of the ERC20 token traded on this contract
-
-factory: Factory                                  # interface for the factory that created this contract
+# interface for the factory that created this contract
+factory: Factory
 
 # @dev This function acts as a contract constructor which is not currently supported in contracts deployed
 #      using create_with_code_of(). It is called once by the factory during contract creation.
 @external
+@pure
 def setup(token_addr: address):
     assert (self.factory == ZERO_ADDRESS and self.token == ZERO_ADDRESS) and token_addr != ZERO_ADDRESS
     self.factory = msg.sender
@@ -74,7 +79,6 @@ def setup(token_addr: address):
 # @param deadline Time after which this transaction can no longer be executed.
 # @return The amount of UNI minted.
 @external
-@payable
 def addLiquidity(min_liquidity: uint256, max_tokens: uint256, deadline: timestamp) -> uint256:
     assert deadline > block.timestamp and (max_tokens > 0 and msg.value > 0)
     total_liquidity: uint256 = self.totalSupply
@@ -175,19 +179,8 @@ def ethToTokenInput(eth_sold: uint256, min_tokens: uint256, deadline: timestamp,
 # @dev User specifies exact input (msg.value).
 # @dev User cannot specify minimum output or deadline.
 @external
-@payable
 def __default__():
     self.ethToTokenInput(msg.value, 1, block.timestamp, msg.sender, msg.sender)
-
-# @notice Convert ETH to Tokens.
-# @dev User specifies exact input (msg.value) and minimum output.
-# @param min_tokens Minimum Tokens bought.
-# @param deadline Time after which this transaction can no longer be executed.
-# @return Amount of Tokens bought.
-@external
-@payable
-def ethToTokenSwapInput(min_tokens: uint256, deadline: timestamp) -> uint256:
-    return self.ethToTokenInput(msg.value, min_tokens, deadline, msg.sender, msg.sender)
 
 # @notice Convert ETH to Tokens and transfers Tokens to recipient.
 # @dev User specifies exact input (msg.value) and minimum output
@@ -196,10 +189,18 @@ def ethToTokenSwapInput(min_tokens: uint256, deadline: timestamp) -> uint256:
 # @param recipient The address that receives output Tokens.
 # @return Amount of Tokens bought.
 @external
-@payable
 def ethToTokenTransferInput(min_tokens: uint256, deadline: timestamp, recipient: address) -> uint256
     assert recipient != self and recipient != ZERO_ADDRESS
     return self.ethToTokenInput(msg.value, min_tokens, deadline, msg.sender, recipient)
+
+# @notice Convert ETH to Tokens.
+# @dev User specifies exact input (msg.value) and minimum output.
+# @param min_tokens Minimum Tokens bought.
+# @param deadline Time after which this transaction can no longer be executed.
+# @return Amount of Tokens bought.
+@external
+def ethToTokenSwapInput(min_tokens: uint256, deadline: timestamp) -> uint256:
+    return self.ethToTokenInput(msg.value, min_tokens, deadline, msg.sender, msg.sender)
 
 # max_eth, eth_refund -> wei
 @internal
@@ -225,7 +226,6 @@ def ethToTokenOutput(tokens_bought: uint256, max_eth: uint256, deadline: timesta
 # @param deadline Time after which this transaction can no longer be executed.
 # @return Amount of ETH sold.
 @external
-@payable
 def ethToTokenSwapOutput(tokens_bought: uint256, deadline: timestamp) -> uint256:
     return as_wei_value(self.ethToTokenOutput(tokens_bought, msg.value, deadline, msg.sender, msg.sender), "wei")
 
@@ -236,7 +236,6 @@ def ethToTokenSwapOutput(tokens_bought: uint256, deadline: timestamp) -> uint256
 # @param recipient The address that receives output Tokens.
 # @return Amount of ETH sold.
 @external
-@payable
 def ethToTokenTransferOutput(tokens_bought: uint256, deadline: timestamp, recipient: address) -> uint256:
     assert recipient != self and recipient != ZERO_ADDRESS
     return as_wei_value(self.ethToTokenOutput(tokens_bought, msg.value, deadline, msg.sender, recipient), "wei")
